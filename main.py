@@ -1,7 +1,21 @@
+import kazoo.client
 from PySide2 import QtWidgets
 
+zk = kazoo.client.KazooClient()
+zk.start()
 app = QtWidgets.QApplication()
 widget = QtWidgets.QWidget()
 widget.setWindowTitle("HelloQt")
+rootLayout = QtWidgets.QVBoxLayout(widget)
+widget.setLayout(rootLayout)
+label = QtWidgets.QLabel("Ready.", widget)
+button = QtWidgets.QPushButton("CLICK ME", widget)
+rootLayout.addWidget(label)
+rootLayout.addWidget(button)
+button.clicked.connect(lambda: label.setText(f"children: {zk.get_children('/')}"))
+widget.resize(600, 400)
 widget.show()
+font = app.font()
+font.setPointSize(12)
+app.setFont(font)
 app.exec_()
