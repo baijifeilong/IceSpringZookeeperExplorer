@@ -1,6 +1,7 @@
 import kazoo.client
 import kazoo.protocol.states
 import pendulum
+import qtawesome
 from PySide2 import QtWidgets, QtGui, QtCore
 
 zk = kazoo.client.KazooClient()
@@ -47,6 +48,7 @@ def refreshNode(zooNode: str, treeNode: QtGui.QStandardItem):
 
 
 def refresh():
+    print("refreshing...")
     model.clear()
     model.setHorizontalHeaderLabels(["Path", "Created", "Updated", "Value"])
     refreshNode("/", model)
@@ -80,7 +82,7 @@ window.resize(1280, 720)
 window.statusBar().showMessage("Ready.")
 toolbar = window.addToolBar("Toolbar")
 toolbar.setMovable(False)
-action = QtWidgets.QAction("Refresh", toolbar)
+action = QtWidgets.QAction(qtawesome.icon("fa.refresh"), "Refresh", toolbar)
 action.triggered.connect(refresh)
 toolbar.addAction(action)
 window.show()
