@@ -59,6 +59,34 @@ def refresh():
     treeView.setSelectionBehavior(QtWidgets.QTreeView.SelectRows)
     treeView.setSelectionMode(QtWidgets.QTreeView.SingleSelection)
     treeView.expandAll()
+    detailLabel.setText("Ready.")
+
+
+def refreshDetail(index: QtCore.QModelIndex):
+    values = []
+    while index.data() is not None:
+        values.append(model.index(index.row(), 0, index.parent()).data())
+        index = index.parent()
+    path = "/" + "/".join(reversed(values))
+    stat: kazoo.protocol.states.ZnodeStat
+    value, stat = zk.get(path)
+    createdAt = pendulum.from_timestamp(stat.ctime // 1000).isoformat(" ")[:-6]
+    updatedAt = pendulum.from_timestamp(stat.mtime // 1000).isoformat(" ")[:-6]
+    detailLabel.setText("\n".join([x.strip() for x in f"""
+    Path: {path}
+    Value: {value.decode()}
+    Created At: {createdAt}
+    Updated At: {updatedAt}
+    czxid: {stat.czxid}
+    mzxid: {stat.mzxid}
+    pzxid: {stat.pzxid}
+    version: {stat.version}
+    cversion: {stat.cversion}
+    aversion: {stat.aversion}
+    ephemeralOwner: {stat.ephemeralOwner}
+    dataLength: {stat.dataLength}
+    numChildren: {stat.numChildren}
+    """.strip().splitlines()]))
 
 
 app = QtWidgets.QApplication()
@@ -69,11 +97,12 @@ model = QtGui.QStandardItemModel(treeView)
 treeView.setModel(model)
 treeView.setEditTriggers(QtWidgets.QTreeView.NoEditTriggers)
 treeView.sortByColumn(0, QtCore.Qt.AscendingOrder)
-treeView.expandAll()
+treeView.clicked.connect(refreshDetail)
 detailWidget = QtWidgets.QWidget(splitter)
 detailLayout = QtWidgets.QVBoxLayout(detailWidget)
 detailWidget.setLayout(detailLayout)
-detailLayout.addWidget(QtWidgets.QLabel("Ready."))
+detailLabel = QtWidgets.QLabel("Ready.")
+detailLayout.addWidget(detailLabel)
 splitter.addWidget(treeView)
 splitter.addWidget(detailWidget)
 window.setWindowTitle("Zookeeper Explorer")
