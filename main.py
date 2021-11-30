@@ -28,11 +28,11 @@ def refreshTree():
     model.clear()
     model.setHorizontalHeaderLabels(["Path", "Created", "Updated", "Value"])
     processNode("", model)
-    treeView.header().setDefaultSectionSize(200)
+    treeView.header().setDefaultSectionSize(220)
     treeView.header().stretchLastSection()
     treeView.sortByColumn(0, QtCore.Qt.AscendingOrder)
     treeView.expandAll()
-    detailLabel.setText("Ready.")
+    refreshLeaf(model.index(0, 0))
 
 
 def refreshLeaf(index: QtCore.QModelIndex):
@@ -45,25 +45,34 @@ def refreshLeaf(index: QtCore.QModelIndex):
     value, stat = zk.get(path)
     createdAt = pendulum.from_timestamp(stat.ctime // 1000).isoformat(" ")[:-6]
     updatedAt = pendulum.from_timestamp(stat.mtime // 1000).isoformat(" ")[:-6]
-    detailLabel.setText("\n".join([x.strip() for x in f"""
-    Path: {path}
-    Value: {value.decode()}
-    Created At: {createdAt}
-    Updated At: {updatedAt}
-    czxid: {stat.czxid}
-    mzxid: {stat.mzxid}
-    pzxid: {stat.pzxid}
-    version: {stat.version}
-    cversion: {stat.cversion}
-    aversion: {stat.aversion}
+    infoLabel.setText("\n".join([x.strip() for x in f"""
+    ctime: {createdAt}
+    mtime: {updatedAt}
+    czxid: {stat.czxid} mzxid: {stat.mzxid}
+    pzxid: {stat.pzxid} version: {stat.version} 
+    cversion: {stat.cversion} aversion: {stat.aversion}
     ephemeralOwner: {stat.ephemeralOwner}
-    dataLength: {stat.dataLength}
-    numChildren: {stat.numChildren}
     """.strip().splitlines()]))
+    pathEdit.setText(path)
+    valueEdit.setText(value.decode() or "<EMPTY>")
+
+
+def popDialog():
+    dialog = QtWidgets.QInputDialog(parent=window)
+    dialog.setInputMode(QtWidgets.QInputDialog.TextInput)
+    dialog.setWindowTitle("Connect to Zookeeper server")
+    dialog.setLabelText("Please input <host:port>")
+    dialog.setTextValue("127.0.0.1:2181")
+    dialog.resize(500, 0)
+    if dialog.exec_() != QtWidgets.QDialog.Accepted:
+        return
+    global zk
+    zk = kazoo.client.KazooClient(dialog.textValue())
+    zk.start()
+    refreshTree()
 
 
 zk = kazoo.client.KazooClient()
-zk.start()
 app = QtWidgets.QApplication()
 window = QtWidgets.QMainWindow()
 splitter = QtWidgets.QSplitter(window)
@@ -78,16 +87,25 @@ treeView.clicked.connect(refreshLeaf)
 detailWidget = QtWidgets.QWidget(splitter)
 detailLayout = QtWidgets.QVBoxLayout(detailWidget)
 detailWidget.setLayout(detailLayout)
-detailLabel = QtWidgets.QLabel("Ready.")
-detailLayout.addWidget(detailLabel)
+infoLabel = QtWidgets.QLabel("\n\n\n\n\n")
+pathEdit = QtWidgets.QTextEdit("path.")
+valueEdit = QtWidgets.QTextEdit("value.")
+detailLayout.addWidget(infoLabel)
+detailLayout.addWidget(pathEdit)
+detailLayout.addWidget(valueEdit)
 splitter.addWidget(treeView)
 splitter.addWidget(detailWidget)
-window.setWindowTitle("Zookeeper Explorer")
+splitter.setStretchFactor(0, 2)
+splitter.setStretchFactor(1, 1)
+window.setWindowTitle("Ice Spring Zookeeper Explorer")
 window.setCentralWidget(splitter)
 window.resize(1280, 720)
 window.statusBar().showMessage("Ready.")
 toolbar = window.addToolBar("Toolbar")
 toolbar.setMovable(False)
+action = QtWidgets.QAction(qtawesome.icon("mdi.connection"), "Connect", toolbar)
+action.triggered.connect(popDialog)
+toolbar.addAction(action)
 action = QtWidgets.QAction(qtawesome.icon("fa.refresh"), "Refresh", toolbar)
 action.triggered.connect(refreshTree)
 toolbar.addAction(action)
@@ -95,5 +113,5 @@ window.show()
 font = app.font()
 font.setPointSize(12)
 app.setFont(font)
-refreshTree()
+app.setWindowIcon(qtawesome.icon("mdi.elephant"))
 app.exec_()
