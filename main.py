@@ -58,16 +58,8 @@ def refreshLeaf(index: QtCore.QModelIndex):
 
 
 def popDialog():
-    dialog = QtWidgets.QInputDialog(parent=window)
-    dialog.setInputMode(QtWidgets.QInputDialog.TextInput)
-    dialog.setWindowTitle("Connect to Zookeeper server")
-    dialog.setLabelText("Please input <host:port>")
-    dialog.setTextValue("127.0.0.1:2181")
-    dialog.resize(500, 0)
-    if dialog.exec_() != QtWidgets.QDialog.Accepted:
-        return
     global zk
-    zk = kazoo.client.KazooClient(dialog.textValue())
+    zk = kazoo.client.KazooClient(serverCombo.currentText())
     zk.start()
     refreshTree()
 
@@ -103,6 +95,10 @@ window.resize(1280, 720)
 window.statusBar().showMessage("Ready.")
 toolbar = window.addToolBar("Toolbar")
 toolbar.setMovable(False)
+serverCombo = QtWidgets.QComboBox()
+serverCombo.setEditable(True)
+serverCombo.addItem("127.0.0.1:2181")
+toolbar.addWidget(serverCombo)
 action = QtWidgets.QAction(qtawesome.icon("mdi.connection"), "Connect", toolbar)
 action.triggered.connect(popDialog)
 toolbar.addAction(action)
