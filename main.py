@@ -48,7 +48,7 @@ def expandLeaf(index: QtCore.QModelIndex):
     print(f"Expanding leaf {index.data()}...")
     path = calcPathFromIndex(index)
     node = model.itemFromIndex(index)
-    expandPath(path, node)
+    not model.hasChildren(index) and expandPath(path, node)
 
 
 def refreshLeaf(index: QtCore.QModelIndex):
