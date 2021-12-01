@@ -11,12 +11,14 @@ def expandPath(path: str, node: QtGui.QStandardItem):
     print(f"Expanding path {path}...")
     children = zk.get_children(path) if path != "" else ["/"]
     for name in sorted(children):
-        childNode = QtGui.QStandardItem(name)
         childPath = f"{path}/{name}".replace("//", "/")
         stat: kazoo.protocol.states.ZnodeStat
         value, stat = zk.get(childPath)
         createdAt = pendulum.from_timestamp(stat.ctime // 1000).isoformat(" ")[:-9]
         updatedAt = pendulum.from_timestamp(stat.mtime // 1000).isoformat(" ")[:-9]
+        title = name if stat.numChildren == 0 else f"{name} [{stat.numChildren}]"
+        childNode = QtGui.QStandardItem(title)
+        childNode.setData(childPath, QtCore.Qt.UserRole)
         node.appendRow([
             childNode,
             QtGui.QStandardItem(createdAt),
@@ -38,25 +40,18 @@ def refreshTree():
     refreshLeaf(model.index(0, 0))
 
 
-def calcPathFromIndex(index: QtCore.QModelIndex):
-    values = []
-    while index.data() is not None:
-        values.append(model.index(index.row(), 0, index.parent()).data())
-        index = index.parent()
-    return "/".join(reversed(["" if x == "/" else x for x in values])) or "/"
-
-
 def expandLeaf(index: QtCore.QModelIndex):
     print(f"Expanding leaf {index.data()}...")
     index = model.index(index.row(), 0, index.parent())
-    path = calcPathFromIndex(index)
+    path = model.itemFromIndex(index).data(QtCore.Qt.UserRole)
     node = model.itemFromIndex(index)
     not model.hasChildren(index) and expandPath(path, node)
 
 
 def refreshLeaf(index: QtCore.QModelIndex):
     print(f"Refreshing leaf {index.data()} ...")
-    path = calcPathFromIndex(index)
+    index = model.index(index.row(), 0, index.parent())
+    path = model.itemFromIndex(index).data(QtCore.Qt.UserRole)
     stat: kazoo.protocol.states.ZnodeStat
     value, stat = zk.get(path)
     createdAt = pendulum.from_timestamp(stat.ctime // 1000).isoformat(" ")[:-6]
@@ -76,6 +71,7 @@ def refreshLeaf(index: QtCore.QModelIndex):
 def doConnect():
     global zk, servers
     server = serverCombo.currentText()
+    server = server if ":" in server else f"{server}:2181"
     zk = kazoo.client.KazooClient(server)
     zk.start()
     server not in servers and serverCombo.insertItem(0, server)
@@ -104,8 +100,8 @@ detailSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, mainSplitter)
 detailSplitter.addWidget(infoEdit)
 detailSplitter.addWidget(pathEdit)
 detailSplitter.addWidget(valueEdit)
-detailSplitter.setStretchFactor(0, 1)
-detailSplitter.setStretchFactor(1, 2)
+detailSplitter.setStretchFactor(1, 1)
+detailSplitter.setStretchFactor(2, 2)
 mainSplitter.addWidget(treeView)
 mainSplitter.addWidget(detailSplitter)
 mainSplitter.setStretchFactor(0, 2)
