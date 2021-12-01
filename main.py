@@ -10,7 +10,7 @@ from PySide2 import QtWidgets, QtGui, QtCore
 def expandPath(path: str, node: QtGui.QStandardItem):
     print(f"Expanding path {path}...")
     children = zk.get_children(path) if path != "" else ["/"]
-    for name in children:
+    for name in sorted(children):
         childNode = QtGui.QStandardItem(name)
         childPath = f"{path}/{name}".replace("//", "/")
         stat: kazoo.protocol.states.ZnodeStat
@@ -48,6 +48,7 @@ def calcPathFromIndex(index: QtCore.QModelIndex):
 
 def expandLeaf(index: QtCore.QModelIndex):
     print(f"Expanding leaf {index.data()}...")
+    index = model.index(index.row(), 0, index.parent())
     path = calcPathFromIndex(index)
     node = model.itemFromIndex(index)
     not model.hasChildren(index) and expandPath(path, node)
@@ -60,7 +61,7 @@ def refreshLeaf(index: QtCore.QModelIndex):
     value, stat = zk.get(path)
     createdAt = pendulum.from_timestamp(stat.ctime // 1000).isoformat(" ")[:-6]
     updatedAt = pendulum.from_timestamp(stat.mtime // 1000).isoformat(" ")[:-6]
-    infoLabel.setText("\n".join([x.strip() for x in f"""
+    infoEdit.setText("\n".join([x.strip() for x in f"""
     ctime: {createdAt}
     mtime: {updatedAt}
     czxid: {stat.czxid} mzxid: {stat.mzxid}
@@ -78,7 +79,7 @@ def doConnect():
     zk = kazoo.client.KazooClient(server)
     zk.start()
     server not in servers and serverCombo.insertItem(0, server)
-    server not in servers and servers.insert(0, server)
+    servers = list(dict.fromkeys([server] + servers))
     configPath.write_text("\n".join(servers))
     refreshTree()
 
@@ -86,8 +87,8 @@ def doConnect():
 zk = kazoo.client.KazooClient()
 app = QtWidgets.QApplication()
 window = QtWidgets.QMainWindow()
-splitter = QtWidgets.QSplitter(window)
-treeView = QtWidgets.QTreeView(splitter)
+mainSplitter = QtWidgets.QSplitter(window)
+treeView = QtWidgets.QTreeView(mainSplitter)
 model = QtGui.QStandardItemModel(treeView)
 treeView.setModel(model)
 treeView.setEditTriggers(QtWidgets.QTreeView.NoEditTriggers)
@@ -96,21 +97,21 @@ treeView.setSelectionBehavior(QtWidgets.QTreeView.SelectRows)
 treeView.setSelectionMode(QtWidgets.QTreeView.SingleSelection)
 treeView.clicked.connect(refreshLeaf)
 treeView.doubleClicked.connect(expandLeaf)
-detailWidget = QtWidgets.QWidget(splitter)
-detailLayout = QtWidgets.QVBoxLayout(detailWidget)
-detailWidget.setLayout(detailLayout)
-infoLabel = QtWidgets.QLabel("\n\n\n\n\n")
+infoEdit = QtWidgets.QTextEdit("\n\n\n\n\n")
 pathEdit = QtWidgets.QTextEdit("path.")
 valueEdit = QtWidgets.QTextEdit("value.")
-detailLayout.addWidget(infoLabel, 0)
-detailLayout.addWidget(pathEdit, 1)
-detailLayout.addWidget(valueEdit, 2)
-splitter.addWidget(treeView)
-splitter.addWidget(detailWidget)
-splitter.setStretchFactor(0, 2)
-splitter.setStretchFactor(1, 1)
+detailSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, mainSplitter)
+detailSplitter.addWidget(infoEdit)
+detailSplitter.addWidget(pathEdit)
+detailSplitter.addWidget(valueEdit)
+detailSplitter.setStretchFactor(0, 1)
+detailSplitter.setStretchFactor(1, 2)
+mainSplitter.addWidget(treeView)
+mainSplitter.addWidget(detailSplitter)
+mainSplitter.setStretchFactor(0, 2)
+mainSplitter.setStretchFactor(1, 1)
 window.setWindowTitle("Ice Spring Zookeeper Explorer")
-window.setCentralWidget(splitter)
+window.setCentralWidget(mainSplitter)
 window.resize(1280, 720)
 window.statusBar().showMessage("Ready.")
 toolbar = window.addToolBar("Toolbar")
