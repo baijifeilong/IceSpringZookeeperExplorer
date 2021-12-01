@@ -5,42 +5,55 @@ import qtawesome
 from PySide2 import QtWidgets, QtGui, QtCore
 
 
-def processNode(zooNode: str, treeNode: QtGui.QStandardItem):
-    children = zk.get_children(zooNode) if zooNode != "" else ["/"]
-    for childZooNode in children:
-        childTreeNode = QtGui.QStandardItem(childZooNode)
-        absoluteNode = f"{zooNode}/{childZooNode}"
+def expandPath(path: str, node: QtGui.QStandardItem):
+    print(f"Expanding path {path}...")
+    children = zk.get_children(path) if path != "" else ["/"]
+    for name in children:
+        childNode = QtGui.QStandardItem(name)
+        childPath = f"{path}/{name}".replace("//", "/")
         stat: kazoo.protocol.states.ZnodeStat
-        value, stat = zk.get(absoluteNode)
+        value, stat = zk.get(childPath)
         createdAt = pendulum.from_timestamp(stat.ctime // 1000).isoformat(" ")[:-9]
         updatedAt = pendulum.from_timestamp(stat.mtime // 1000).isoformat(" ")[:-9]
-        treeNode.appendRow([
-            childTreeNode,
+        node.appendRow([
+            childNode,
             QtGui.QStandardItem(createdAt),
             QtGui.QStandardItem(updatedAt),
             QtGui.QStandardItem(value.decode()),
         ])
-        processNode(absoluteNode, childTreeNode)
+        name == "/" and expandPath(childPath, childNode)
+    path == "" and treeView.expand(model.index(0, 0))
 
 
 def refreshTree():
-    print("refreshing...")
+    print("Refreshing tree...")
     model.clear()
     model.setHorizontalHeaderLabels(["Path", "Created", "Updated", "Value"])
-    processNode("", model)
+    expandPath("", model)
     treeView.header().setDefaultSectionSize(220)
     treeView.header().stretchLastSection()
     treeView.sortByColumn(0, QtCore.Qt.AscendingOrder)
-    treeView.expandAll()
     refreshLeaf(model.index(0, 0))
 
 
-def refreshLeaf(index: QtCore.QModelIndex):
+def calcPathFromIndex(index: QtCore.QModelIndex):
     values = []
     while index.data() is not None:
         values.append(model.index(index.row(), 0, index.parent()).data())
         index = index.parent()
-    path = "/".join(reversed(["" if x == "/" else x for x in values])) or "/"
+    return "/".join(reversed(["" if x == "/" else x for x in values])) or "/"
+
+
+def expandLeaf(index: QtCore.QModelIndex):
+    print(f"Expanding leaf {index.data()}...")
+    path = calcPathFromIndex(index)
+    node = model.itemFromIndex(index)
+    expandPath(path, node)
+
+
+def refreshLeaf(index: QtCore.QModelIndex):
+    print(f"Refreshing leaf {index.data()} ...")
+    path = calcPathFromIndex(index)
     stat: kazoo.protocol.states.ZnodeStat
     value, stat = zk.get(path)
     createdAt = pendulum.from_timestamp(stat.ctime // 1000).isoformat(" ")[:-6]
@@ -57,7 +70,7 @@ def refreshLeaf(index: QtCore.QModelIndex):
     valueEdit.setText(value.decode() or "<EMPTY>")
 
 
-def popDialog():
+def doConnect():
     global zk
     zk = kazoo.client.KazooClient(serverCombo.currentText())
     zk.start()
@@ -76,15 +89,16 @@ treeView.setAlternatingRowColors(True)
 treeView.setSelectionBehavior(QtWidgets.QTreeView.SelectRows)
 treeView.setSelectionMode(QtWidgets.QTreeView.SingleSelection)
 treeView.clicked.connect(refreshLeaf)
+treeView.doubleClicked.connect(expandLeaf)
 detailWidget = QtWidgets.QWidget(splitter)
 detailLayout = QtWidgets.QVBoxLayout(detailWidget)
 detailWidget.setLayout(detailLayout)
 infoLabel = QtWidgets.QLabel("\n\n\n\n\n")
 pathEdit = QtWidgets.QTextEdit("path.")
 valueEdit = QtWidgets.QTextEdit("value.")
-detailLayout.addWidget(infoLabel)
-detailLayout.addWidget(pathEdit)
-detailLayout.addWidget(valueEdit)
+detailLayout.addWidget(infoLabel, 0)
+detailLayout.addWidget(pathEdit, 1)
+detailLayout.addWidget(valueEdit, 2)
 splitter.addWidget(treeView)
 splitter.addWidget(detailWidget)
 splitter.setStretchFactor(0, 2)
@@ -100,7 +114,7 @@ serverCombo.setEditable(True)
 serverCombo.addItem("127.0.0.1:2181")
 toolbar.addWidget(serverCombo)
 action = QtWidgets.QAction(qtawesome.icon("mdi.connection"), "Connect", toolbar)
-action.triggered.connect(popDialog)
+action.triggered.connect(doConnect)
 toolbar.addAction(action)
 action = QtWidgets.QAction(qtawesome.icon("fa.refresh"), "Refresh", toolbar)
 action.triggered.connect(refreshTree)
