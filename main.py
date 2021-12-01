@@ -1,3 +1,5 @@
+import pathlib
+
 import kazoo.client
 import kazoo.protocol.states
 import pendulum
@@ -71,9 +73,13 @@ def refreshLeaf(index: QtCore.QModelIndex):
 
 
 def doConnect():
-    global zk
-    zk = kazoo.client.KazooClient(serverCombo.currentText())
+    global zk, servers
+    server = serverCombo.currentText()
+    zk = kazoo.client.KazooClient(server)
     zk.start()
+    server not in servers and serverCombo.insertItem(0, server)
+    server not in servers and servers.insert(0, server)
+    configPath.write_text("\n".join(servers))
     refreshTree()
 
 
@@ -109,9 +115,12 @@ window.resize(1280, 720)
 window.statusBar().showMessage("Ready.")
 toolbar = window.addToolBar("Toolbar")
 toolbar.setMovable(False)
+configPath = pathlib.Path("servers.txt")
+configPath.touch(exist_ok=True)
+servers = [x.strip() for x in configPath.read_text().splitlines() if x.strip()] or ["127.0.0.1:2181"]
 serverCombo = QtWidgets.QComboBox()
 serverCombo.setEditable(True)
-serverCombo.addItem("127.0.0.1:2181")
+[serverCombo.addItem(server) for server in servers]
 toolbar.addWidget(serverCombo)
 action = QtWidgets.QAction(qtawesome.icon("mdi.connection"), "Connect", toolbar)
 action.triggered.connect(doConnect)
