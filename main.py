@@ -1,4 +1,6 @@
+import json
 import pathlib
+import urllib.parse
 
 import kazoo.client
 import kazoo.protocol.states
@@ -64,8 +66,10 @@ def refreshLeaf(index: QtCore.QModelIndex):
     cversion: {stat.cversion} aversion: {stat.aversion}
     ephemeralOwner: {stat.ephemeralOwner}
     """.strip().splitlines()]))
-    pathEdit.setText(path)
-    valueEdit.setText(value.decode() or "<EMPTY>")
+    pathEdit.setProperty("raw", path)
+    refreshPath()
+    valueEdit.setProperty("raw", value.decode())
+    refreshValue()
 
 
 def doConnect():
@@ -80,11 +84,72 @@ def doConnect():
     refreshTree()
 
 
+def convertText(raw: str, type: str) -> str:
+    if type == "URL":
+        text = urllib.parse.unquote(raw)
+        parts = text.split("?")
+        prefix = parts[0]
+        jd = dict(urllib.parse.parse_qsl(parts[-1]))
+        query = "\n".join(f"    {k} = {v}" for k, v in jd.items())
+        return "\n".join((prefix, query)).strip()
+    if type == "JSON":
+        return json.dumps(json.loads(raw), ensure_ascii=False, indent=4)
+    return raw
+
+
+def convertTextOrIllegal(raw: str, type: str) -> str:
+    try:
+        return convertText(raw, type)
+    except json.decoder.JSONDecodeError:
+        return "<ILLEGAL JSON>"
+
+
+def detectType(text: str) -> str:
+    if text.startswith("{") or text.startswith("["):
+        return "JSON"
+    if "?" in urllib.parse.unquote(text):
+        return "URL"
+    return "Raw"
+
+
+def refreshPath():
+    raw = pathEdit.property("raw") or ""
+    type = pathRadioGroup.checkedButton().text()
+    type = detectType(raw) if type == "Auto" else type
+    text = convertTextOrIllegal(raw, type)
+    pathEdit.setText(text)
+
+
+def refreshValue():
+    raw = valueEdit.property("raw") or ""
+    type = valueRadioGroup.checkedButton().text()
+    type = detectType(raw) if type == "Auto" else type
+    text = convertTextOrIllegal(raw, type)
+    valueEdit.setText(text or "<EMPTY>")
+
+
 zk = kazoo.client.KazooClient()
 app = QtWidgets.QApplication()
+app.setWindowIcon(qtawesome.icon("mdi.elephant"))
+font = app.font()
+font.setPointSize(12)
+app.setFont(font)
+
 window = QtWidgets.QMainWindow()
 mainSplitter = QtWidgets.QSplitter(window)
+window.setWindowTitle("Ice Spring Zookeeper Explorer")
+window.setCentralWidget(mainSplitter)
+window.statusBar().showMessage("Ready.")
+window.resize(1280, 720)
+window.show()
+
 treeView = QtWidgets.QTreeView(mainSplitter)
+detailSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, mainSplitter)
+mainSplitter.addWidget(treeView)
+mainSplitter.addWidget(detailSplitter)
+mainSplitter.setStretchFactor(0, 2)
+mainSplitter.setStretchFactor(1, 1)
+
 model = QtGui.QStandardItemModel(treeView)
 treeView.setModel(model)
 treeView.setEditTriggers(QtWidgets.QTreeView.NoEditTriggers)
@@ -93,41 +158,69 @@ treeView.setSelectionBehavior(QtWidgets.QTreeView.SelectRows)
 treeView.setSelectionMode(QtWidgets.QTreeView.SingleSelection)
 treeView.clicked.connect(refreshLeaf)
 treeView.doubleClicked.connect(expandLeaf)
+
 infoEdit = QtWidgets.QTextEdit("\n\n\n\n\n")
-pathEdit = QtWidgets.QTextEdit("path.")
-valueEdit = QtWidgets.QTextEdit("value.")
-detailSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, mainSplitter)
+pathWidget = QtWidgets.QWidget(detailSplitter)
+valueWidget = QtWidgets.QWidget(detailSplitter)
 detailSplitter.addWidget(infoEdit)
-detailSplitter.addWidget(pathEdit)
-detailSplitter.addWidget(valueEdit)
+detailSplitter.addWidget(pathWidget)
+detailSplitter.addWidget(valueWidget)
 detailSplitter.setStretchFactor(1, 1)
 detailSplitter.setStretchFactor(2, 2)
-mainSplitter.addWidget(treeView)
-mainSplitter.addWidget(detailSplitter)
-mainSplitter.setStretchFactor(0, 2)
-mainSplitter.setStretchFactor(1, 1)
-window.setWindowTitle("Ice Spring Zookeeper Explorer")
-window.setCentralWidget(mainSplitter)
-window.resize(1280, 720)
-window.statusBar().showMessage("Ready.")
+
+pathLayout = QtWidgets.QVBoxLayout(pathWidget)
+pathLayout.setMargin(0)
+pathLayout.setSpacing(0)
+pathWidget.setLayout(pathLayout)
+pathEdit = QtWidgets.QTextEdit("path.")
+pathRadioLayout = QtWidgets.QHBoxLayout(pathWidget)
+pathLayout.addWidget(pathEdit)
+pathLayout.addLayout(pathRadioLayout)
+pathAutoRadio = QtWidgets.QRadioButton("Auto", pathWidget)
+pathAutoRadio.setChecked(True)
+pathRawRadio = QtWidgets.QRadioButton("Raw", pathWidget)
+pathUrlRadio = QtWidgets.QRadioButton("URL", pathWidget)
+pathRadioGroup = QtWidgets.QButtonGroup(pathLayout)
+pathRadioGroup.buttonClicked.connect(refreshPath)
+for radio in pathAutoRadio, pathRawRadio, pathUrlRadio:
+    pathRadioLayout.addWidget(radio)
+    pathRadioGroup.addButton(radio)
+pathRadioLayout.addStretch()
+
+valueLayout = QtWidgets.QVBoxLayout(valueWidget)
+valueLayout.setMargin(0)
+valueLayout.setSpacing(0)
+valueWidget.setLayout(valueLayout)
+valueEdit = QtWidgets.QTextEdit("value.")
+valueRadioLayout = QtWidgets.QHBoxLayout(valueWidget)
+valueLayout.addWidget(valueEdit)
+valueLayout.addLayout(valueRadioLayout)
+valueAutoRadio = QtWidgets.QRadioButton("Auto", valueWidget)
+valueAutoRadio.setChecked(True)
+valueRawRadio = QtWidgets.QRadioButton("Raw", valueWidget)
+valueJsonRadio = QtWidgets.QRadioButton("JSON", valueWidget)
+valueRadioGroup = QtWidgets.QButtonGroup(valueLayout)
+valueRadioGroup.buttonClicked.connect(refreshValue)
+for radio in valueAutoRadio, valueRawRadio, valueJsonRadio:
+    valueRadioLayout.addWidget(radio)
+    valueRadioGroup.addButton(radio)
+valueRadioLayout.addStretch()
+
 toolbar = window.addToolBar("Toolbar")
 toolbar.setMovable(False)
+serverCombo = QtWidgets.QComboBox()
+connectAction = QtWidgets.QAction(qtawesome.icon("mdi.connection"), "Connect", toolbar)
+connectAction.triggered.connect(doConnect)
+refreshAction = QtWidgets.QAction(qtawesome.icon("fa.refresh"), "Refresh", toolbar)
+refreshAction.triggered.connect(refreshTree)
+toolbar.addWidget(serverCombo)
+toolbar.addAction(connectAction)
+toolbar.addAction(refreshAction)
+
 configPath = pathlib.Path("servers.txt")
 configPath.touch(exist_ok=True)
 servers = [x.strip() for x in configPath.read_text().splitlines() if x.strip()] or ["127.0.0.1:2181"]
-serverCombo = QtWidgets.QComboBox()
 serverCombo.setEditable(True)
 [serverCombo.addItem(server) for server in servers]
-toolbar.addWidget(serverCombo)
-action = QtWidgets.QAction(qtawesome.icon("mdi.connection"), "Connect", toolbar)
-action.triggered.connect(doConnect)
-toolbar.addAction(action)
-action = QtWidgets.QAction(qtawesome.icon("fa.refresh"), "Refresh", toolbar)
-action.triggered.connect(refreshTree)
-toolbar.addAction(action)
-window.show()
-font = app.font()
-font.setPointSize(12)
-app.setFont(font)
-app.setWindowIcon(qtawesome.icon("mdi.elephant"))
+
 app.exec_()

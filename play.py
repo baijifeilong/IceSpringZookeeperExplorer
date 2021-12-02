@@ -1,3 +1,5 @@
+import json
+
 import kazoo.client
 
 zk = kazoo.client.KazooClient()
@@ -21,6 +23,9 @@ zk.ensure_path("/Vegetables/Union")
 zk.ensure_path("/Vegetables/Cucumber")
 zk.set("/Animals/Dolphin", b"This is a dolphin")
 zk.set("/Vegetables/Potato", b"This is a potato")
+zk.ensure_path("/Animals/Dragon?hello=world&lorem=ipsum&foo=bar")
+zk.set("/Animals/Dragon?hello=world&lorem=ipsum&foo=bar",
+       json.dumps(dict(hello="world", lorem="ipsum", foo="bar")).encode())
 
 print(zk.get_children("/Fruits"))
 print(zk.get("/Fruits"))
