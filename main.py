@@ -18,7 +18,8 @@ def expandPath(path: str, node: QtGui.QStandardItem):
         value, stat = zk.get(childPath)
         createdAt = pendulum.from_timestamp(stat.ctime // 1000).isoformat(" ")[:-9]
         updatedAt = pendulum.from_timestamp(stat.mtime // 1000).isoformat(" ")[:-9]
-        title = name if stat.numChildren == 0 else f"{name} [{stat.numChildren}]"
+        unquotedName = urllib.parse.unquote(name)
+        title = unquotedName if stat.numChildren == 0 else f"{unquotedName} [{stat.numChildren}]"
         childNode = QtGui.QStandardItem(title)
         childNode.setData(childPath, QtCore.Qt.UserRole)
         node.appendRow([
