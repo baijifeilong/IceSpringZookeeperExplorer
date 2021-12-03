@@ -1,8 +1,8 @@
+import os
 import pathlib
 import shutil
 
 import PyInstaller.__main__
-import py7zr
 
 name = "IceSpringZookeeperExplorer"
 
@@ -40,6 +40,4 @@ for file in pathlib.Path("dist").glob("*/*"):
         print(f"Removing {file.name}")
         file.unlink()
 
-print("Compressing...")
-zf = py7zr.SevenZipFile(f"{name}.7z", "w")
-zf.writeall(f"dist/{name}")
+os.system(f"cd dist && 7z a -mx=9 ../{name}.7z {name}")
