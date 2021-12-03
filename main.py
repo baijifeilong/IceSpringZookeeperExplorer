@@ -37,7 +37,7 @@ def expandPath(path: str, node: QtGui.QStandardItem):
         createdAt = pendulum.from_timestamp(stat.ctime // 1000).isoformat(" ")[:-9]
         updatedAt = pendulum.from_timestamp(stat.mtime // 1000).isoformat(" ")[:-9]
         convertedName = convertName(name)
-        title = f"{convertedName} [{stat.numChildren}]"
+        title = f"{convertedName} [{stat.numChildren}]" if stat.numChildren else convertedName
         childNode = QtGui.QStandardItem(title)
         childNode.setData(childPath, QtCore.Qt.UserRole)
         node.appendRow([
