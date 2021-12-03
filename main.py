@@ -9,6 +9,24 @@ import qtawesome
 from PySide2 import QtWidgets, QtGui, QtCore
 
 
+def refreshNode(node: QtGui.QStandardItem):
+    if node != model.invisibleRootItem():
+        path = node.data(QtCore.Qt.UserRole)
+        parts = node.text().split()
+        convertedName = convertName(path.split("/")[-1]) or "/"
+        len(parts) == 1 and node.setText(convertedName)
+        len(parts) == 2 and node.setText(convertedName + " " + parts[-1])
+    for rowIndex in range(node.rowCount()):
+        child = node.child(rowIndex, 0)
+        refreshNode(child)
+
+
+def convertName(name: str) -> str:
+    if pathAutoRadio.isChecked() or pathUrlRadio.isChecked():
+        return urllib.parse.unquote(name)
+    return name
+
+
 def expandPath(path: str, node: QtGui.QStandardItem):
     print(f"Expanding path {path}...")
     children = zk.get_children(path) if path != "" else ["/"]
@@ -18,8 +36,8 @@ def expandPath(path: str, node: QtGui.QStandardItem):
         value, stat = zk.get(childPath)
         createdAt = pendulum.from_timestamp(stat.ctime // 1000).isoformat(" ")[:-9]
         updatedAt = pendulum.from_timestamp(stat.mtime // 1000).isoformat(" ")[:-9]
-        unquotedName = urllib.parse.unquote(name)
-        title = unquotedName if stat.numChildren == 0 else f"{unquotedName} [{stat.numChildren}]"
+        convertedName = convertName(name)
+        title = f"{convertedName} [{stat.numChildren}]"
         childNode = QtGui.QStandardItem(title)
         childNode.setData(childPath, QtCore.Qt.UserRole)
         node.appendRow([
@@ -32,11 +50,11 @@ def expandPath(path: str, node: QtGui.QStandardItem):
     path == "" and treeView.expand(model.index(0, 0))
 
 
-def refreshTree():
+def refreshRoot():
     print("Refreshing tree...")
     model.clear()
     model.setHorizontalHeaderLabels(["Path", "Created", "Updated", "Value"])
-    expandPath("", model)
+    expandPath("", model.invisibleRootItem())
     treeView.header().setDefaultSectionSize(220)
     treeView.header().stretchLastSection()
     treeView.sortByColumn(0, QtCore.Qt.AscendingOrder)
@@ -82,7 +100,7 @@ def doConnect():
     server not in servers and serverCombo.insertItem(0, server)
     servers = list(dict.fromkeys([server] + servers))
     configPath.write_text("\n".join(servers))
-    refreshTree()
+    refreshRoot()
 
 
 def convertText(raw: str, type: str) -> str:
@@ -119,6 +137,7 @@ def refreshPath():
     type = detectType(raw) if type == "Auto" else type
     text = convertTextOrIllegal(raw, type)
     pathEdit.setText(text)
+    refreshNode(model.invisibleRootItem())
 
 
 def refreshValue():
@@ -213,7 +232,7 @@ serverCombo = QtWidgets.QComboBox()
 connectAction = QtWidgets.QAction(qtawesome.icon("mdi.connection"), "Connect", toolbar)
 connectAction.triggered.connect(doConnect)
 refreshAction = QtWidgets.QAction(qtawesome.icon("fa.refresh"), "Refresh", toolbar)
-refreshAction.triggered.connect(refreshTree)
+refreshAction.triggered.connect(refreshRoot)
 toolbar.addWidget(serverCombo)
 toolbar.addAction(connectAction)
 toolbar.addAction(refreshAction)

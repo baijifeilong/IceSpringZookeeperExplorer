@@ -1,11 +1,13 @@
 import json
+import urllib.parse
 
 import kazoo.client
 
 zk = kazoo.client.KazooClient()
 zk.start()
-zk.delete("/1", recursive=True)
-zk.delete("/2", recursive=True)
+zk.delete("/Animals", recursive=True)
+zk.delete("/Fruits", recursive=True)
+zk.delete("/Vegetables", recursive=True)
 zk.ensure_path("/Animals/Elephant")
 zk.ensure_path("/Animals/Dolphin")
 zk.ensure_path("/Animals/Monkey")
@@ -23,9 +25,9 @@ zk.ensure_path("/Vegetables/Union")
 zk.ensure_path("/Vegetables/Cucumber")
 zk.set("/Animals/Dolphin", b"This is a dolphin")
 zk.set("/Vegetables/Potato", b"This is a potato")
-zk.ensure_path("/Animals/Dragon?hello=world&lorem=ipsum&foo=bar")
-zk.set("/Animals/Dragon?hello=world&lorem=ipsum&foo=bar",
-       json.dumps(dict(hello="world", lorem="ipsum", foo="bar")).encode())
+path = urllib.parse.quote("/Animals/Dragon?hello=world&lorem=ipsum&foo=bar")
+zk.ensure_path(path)
+zk.set(path, json.dumps(dict(hello="world", lorem="ipsum", foo="bar")).encode())
 
 print(zk.get_children("/Fruits"))
 print(zk.get("/Fruits"))
