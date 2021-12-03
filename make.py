@@ -31,7 +31,11 @@ PyInstaller.__main__.run([
     "--noconsole",
     "--noupx",
     "--name",
-    name
+    name,
+    "--ico",
+    "resources/elephant.ico",
+    "--add-data",
+    "resources;resources"
 ])
 
 print("Cleaning...")

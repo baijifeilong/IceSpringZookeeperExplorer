@@ -150,7 +150,7 @@ def refreshValue():
 
 zk = kazoo.client.KazooClient()
 app = QtWidgets.QApplication()
-app.setWindowIcon(qtawesome.icon("mdi.elephant"))
+app.setWindowIcon(QtGui.QIcon("resources/elephant.ico"))
 font = app.font()
 font.setPointSize(12)
 app.setFont(font)
